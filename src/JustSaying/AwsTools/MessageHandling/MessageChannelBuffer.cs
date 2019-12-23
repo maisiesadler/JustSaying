@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using JustSaying.Models;
+using Amazon.SQS.Model;
 
 namespace JustSaying.AwsTools.MessageHandling
 {
