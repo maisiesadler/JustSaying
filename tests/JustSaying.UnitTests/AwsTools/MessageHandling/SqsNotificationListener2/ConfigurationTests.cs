@@ -40,45 +40,84 @@ namespace JustSaying.UnitTests.AwsTools.MessageHandling.SqsNotificationListener2
         [Fact]
         public async Task QueueCanBeAssignedToMultiplePumps()
         {
+            var handlerMap = new HandlerMap();
+
             var producer = new Producer("one");
             var buffer = new MessageChannelBuffer(10, () => producer.GetNext());
             var cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromSeconds(2));
-            var dispatcher = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "one");
+            var dispatcher = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "one", handlerMap);
 
             var messagePumpCollection = new MessagePumpCollection(3, _testOutputHelper.ToLogger<MessagePumpCollection>());
 
-            var t = messagePumpCollection.Listen(buffer, dispatcher, cts.Token);
+            var pumpTask = messagePumpCollection.Listen(buffer, dispatcher, cts.Token);
 
-            messagePumpCollection.StartAsync();
-            await buffer.BeginProducingAsync(cts.Token);
+            var writeTask = buffer.BeginProducingAsync(cts.Token);
 
-            await t;
+            messagePumpCollection.StartAsync(CancellationToken.None);
+
+            await writeTask;
+            await pumpTask;
         }
 
         [Fact]
         public async Task MultipleQueuesCanBeAssignedToOnePump()
         {
+            var handlerMap = new HandlerMap();
+
             var producer = new Producer("one");
             var buffer = new MessageChannelBuffer(10, () => producer.GetNext());
             var producer2 = new Producer("two");
             var buffer2 = new MessageChannelBuffer(10, () => producer2.GetNext());
             var cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromSeconds(2));
-            var dispatcher1 = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "one");
-            var dispatcher2 = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "two");
+            var dispatcher1 = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "one", handlerMap);
+            var dispatcher2 = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "two", handlerMap);
 
             var messagePumpCollection = new MessagePumpCollection(3, _testOutputHelper.ToLogger<MessagePumpCollection>());
 
-            var t1 = messagePumpCollection.Listen(buffer, dispatcher1, cts.Token);
-            var t2 = messagePumpCollection.Listen(buffer, dispatcher2, cts.Token);
+            var pumpTask1 = messagePumpCollection.Listen(buffer, dispatcher1, cts.Token);
+            var pumpTask2 = messagePumpCollection.Listen(buffer, dispatcher2, cts.Token);
 
-            messagePumpCollection.StartAsync();
-            await buffer.BeginProducingAsync(cts.Token);
-            await buffer2.BeginProducingAsync(cts.Token);
+            var writeTask1 = buffer.BeginProducingAsync(cts.Token);
+            var writeTask2 = buffer2.BeginProducingAsync(cts.Token);
 
-            await t1;
-            await t2;
+            messagePumpCollection.StartAsync(CancellationToken.None);
+
+            await writeTask1;
+            await writeTask2;
+            await pumpTask1;
+            await pumpTask2;
+        }
+
+        [Fact]
+        public async Task TestConfiguration()
+        {
+            var handlerMap = new HandlerMap();
+
+            var producer = new Producer("one");
+            var buffer = new MessageChannelBuffer(10, () => producer.GetNext());
+            var producer2 = new Producer("two");
+            var buffer2 = new MessageChannelBuffer(10, () => producer2.GetNext());
+            var cts = new CancellationTokenSource();
+            cts.CancelAfter(TimeSpan.FromSeconds(2));
+            var dispatcher1 = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "one", handlerMap);
+            var dispatcher2 = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "two", handlerMap);
+
+            var messagePumpCollection = new MessagePumpCollection(3, _testOutputHelper.ToLogger<MessagePumpCollection>());
+
+            var pumpTask1 = messagePumpCollection.Listen(buffer, dispatcher1, cts.Token);
+            var pumpTask2 = messagePumpCollection.Listen(buffer, dispatcher2, cts.Token);
+
+            var writeTask1 = buffer.BeginProducingAsync(cts.Token);
+            var writeTask2 = buffer2.BeginProducingAsync(cts.Token);
+
+            messagePumpCollection.StartAsync(CancellationToken.None);
+
+            await writeTask1;
+            await writeTask2;
+            await pumpTask1;
+            await pumpTask2;
         }
 
         private async Task Listen(IAsyncEnumerable<Message> messages, string prefix)
@@ -110,15 +149,23 @@ namespace JustSaying.UnitTests.AwsTools.MessageHandling.SqsNotificationListener2
         {
             private readonly ILogger _logger;
             private readonly string _prefix;
+            private readonly HandlerMap _handlerMap;
 
-            public LoggingDispatcher(ILogger logger, string prefix)
+            public LoggingDispatcher(
+                ILogger logger,
+                string prefix,
+                HandlerMap handlerMap)
             {
                 _logger = logger;
                 _prefix = prefix;
+                _handlerMap = handlerMap;
             }
 
             public Task DispatchMessage(Message message, CancellationToken cancellationToken)
             {
+                // get message type
+                // find type in HandlerMap
+
                 _logger.LogInformation($"Dispatcher {_prefix} got message '{message}'");
                 return Task.CompletedTask;
             }

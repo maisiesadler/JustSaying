@@ -70,7 +70,7 @@ namespace JustSaying.AwsTools.MessageHandling
             }
         }
 
-        public void StartAsync()
+        public void StartAsync(CancellationToken cancellationToken)
         {
             for (var i = 0; i < _numberOfPumps; i++)
             {
@@ -80,7 +80,7 @@ namespace JustSaying.AwsTools.MessageHandling
                     await foreach ((Message message, IMessageDispatcher messageDispatcher) in Messages())
                     {
                         _logger.LogInformation($"{ii} got: {message}");
-                        await messageDispatcher.DispatchMessage(message, CancellationToken.None).ConfigureAwait(false);
+                        await messageDispatcher.DispatchMessage(message, cancellationToken).ConfigureAwait(false);
                     }
                 });
             }
