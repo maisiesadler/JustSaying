@@ -48,9 +48,9 @@ namespace JustSaying.UnitTests.AwsTools.MessageHandling.SqsNotificationListener2
             cts.CancelAfter(TimeSpan.FromSeconds(2));
             var dispatcher = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "one", handlerMap);
 
-            var messagePumpCollection = new MessagePumpCollection(3, _testOutputHelper.ToLogger<MessagePumpCollection>());
+            var messagePumpCollection = new MessagePumpCollection(3, dispatcher, _testOutputHelper.ToLogger<MessagePumpCollection>());
 
-            var pumpTask = messagePumpCollection.Listen(buffer, dispatcher, cts.Token);
+            var pumpTask = messagePumpCollection.Listen(buffer, cts.Token);
 
             var writeTask = buffer.BeginProducingAsync(cts.Token);
 
@@ -71,13 +71,14 @@ namespace JustSaying.UnitTests.AwsTools.MessageHandling.SqsNotificationListener2
             var buffer2 = new MessageChannelBuffer(10, () => producer2.GetNext());
             var cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromSeconds(2));
-            var dispatcher1 = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "one", handlerMap);
-            var dispatcher2 = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "two", handlerMap);
 
-            var messagePumpCollection = new MessagePumpCollection(3, _testOutputHelper.ToLogger<MessagePumpCollection>());
+            // dispatcher configured to handle all messages using handlerMap
+            var dispatcher = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "one", handlerMap);
 
-            var pumpTask1 = messagePumpCollection.Listen(buffer, dispatcher1, cts.Token);
-            var pumpTask2 = messagePumpCollection.Listen(buffer, dispatcher2, cts.Token);
+            var messagePumpCollection = new MessagePumpCollection(3, dispatcher, _testOutputHelper.ToLogger<MessagePumpCollection>());
+
+            var pumpTask1 = messagePumpCollection.Listen(buffer, cts.Token);
+            var pumpTask2 = messagePumpCollection.Listen(buffer2, cts.Token);
 
             var writeTask1 = buffer.BeginProducingAsync(cts.Token);
             var writeTask2 = buffer2.BeginProducingAsync(cts.Token);
@@ -101,13 +102,12 @@ namespace JustSaying.UnitTests.AwsTools.MessageHandling.SqsNotificationListener2
             var buffer2 = new MessageChannelBuffer(10, () => producer2.GetNext());
             var cts = new CancellationTokenSource();
             cts.CancelAfter(TimeSpan.FromSeconds(2));
-            var dispatcher1 = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "one", handlerMap);
-            var dispatcher2 = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "two", handlerMap);
+            var dispatcher = new LoggingDispatcher(_testOutputHelper.ToLogger<LoggingDispatcher>(), "one", handlerMap);
 
-            var messagePumpCollection = new MessagePumpCollection(3, _testOutputHelper.ToLogger<MessagePumpCollection>());
+            var messagePumpCollection = new MessagePumpCollection(3, dispatcher, _testOutputHelper.ToLogger<MessagePumpCollection>());
 
-            var pumpTask1 = messagePumpCollection.Listen(buffer, dispatcher1, cts.Token);
-            var pumpTask2 = messagePumpCollection.Listen(buffer, dispatcher2, cts.Token);
+            var pumpTask1 = messagePumpCollection.Listen(buffer, cts.Token);
+            var pumpTask2 = messagePumpCollection.Listen(buffer2, cts.Token);
 
             var writeTask1 = buffer.BeginProducingAsync(cts.Token);
             var writeTask2 = buffer2.BeginProducingAsync(cts.Token);

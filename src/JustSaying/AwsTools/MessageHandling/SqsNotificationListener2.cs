@@ -14,7 +14,6 @@ namespace JustSaying.AwsTools.MessageHandling
     public class SqsNotificationListener2 : INotificationSubscriber
     {
         private readonly IMessageBuffer _messageBuffer;
-        private readonly IMessageDispatcher _messageDispatcher;
         private readonly IMessagePumpCollection _messagePumpCollection;
 
         public bool IsListening { get; }
@@ -25,11 +24,9 @@ namespace JustSaying.AwsTools.MessageHandling
 
         public SqsNotificationListener2(
             IMessageBuffer messageBuffer,
-            IMessageDispatcher messageDispatcher,
             IMessagePumpCollection messagePumpCollection)
         {
             _messageBuffer = messageBuffer;
-            _messageDispatcher = messageDispatcher;
             _messagePumpCollection = messagePumpCollection;
         }
 
@@ -40,33 +37,36 @@ namespace JustSaying.AwsTools.MessageHandling
 
         public void Listen(CancellationToken cancellationToken)
         {
-            _messagePumpCollection.Listen(_messageBuffer, _messageDispatcher, cancellationToken);
+            _messagePumpCollection.Listen(_messageBuffer, cancellationToken);
         }
     }
 
     public interface IMessagePumpCollection
     {
-        Task Listen(IMessageBuffer messageBuffer, IMessageDispatcher messageDispatcher, CancellationToken cancellationToken);
+        Task Listen(IMessageBuffer messageBuffer, CancellationToken cancellationToken);
     }
 
     public class MessagePumpCollection : IMessagePumpCollection
     {
-        private readonly Channel<(Message, IMessageDispatcher)> _channel;
+        private readonly Channel<Message> _channel;
         private readonly int _numberOfPumps;
+        private readonly IMessageDispatcher _messageDispatcher;
         private readonly ILogger _logger;
 
-        public MessagePumpCollection(int numberOfPumps, ILogger logger)
+        public MessagePumpCollection(int numberOfPumps, IMessageDispatcher messageDispatcher, ILogger logger)
         {
-            _channel = Channel.CreateUnbounded<(Message, IMessageDispatcher)>();
+            _channel = Channel.CreateUnbounded<Message>();
             _numberOfPumps = numberOfPumps;
+            _messageDispatcher = messageDispatcher;
             _logger = logger;
         }
 
-        public async Task Listen(IMessageBuffer messageBuffer, IMessageDispatcher messageDispatcher, CancellationToken cancellationToken)
+        public async Task Listen(IMessageBuffer messageBuffer, CancellationToken cancellationToken)
         {
             await foreach (var message in messageBuffer.Messages())
             {
-                await _channel.Writer.WriteAsync((message, messageDispatcher));
+                _logger.LogInformation($"Writing {message}");
+                await _channel.Writer.WriteAsync(message);
             }
         }
 
@@ -77,16 +77,16 @@ namespace JustSaying.AwsTools.MessageHandling
                 var ii = i;
                 _ = Task.Run(async () =>
                 {
-                    await foreach ((Message message, IMessageDispatcher messageDispatcher) in Messages())
+                    await foreach (Message message in Messages())
                     {
                         _logger.LogInformation($"{ii} got: {message}");
-                        await messageDispatcher.DispatchMessage(message, cancellationToken).ConfigureAwait(false);
+                        await _messageDispatcher.DispatchMessage(message, cancellationToken).ConfigureAwait(false);
                     }
                 });
             }
         }
 
-        private async IAsyncEnumerable<(Message, IMessageDispatcher)> Messages()
+        private async IAsyncEnumerable<Message> Messages()
         {
             while (await _channel.Reader.WaitToReadAsync())
             {
